@@ -1,0 +1,581 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Google Reviews Sentiment Analyzer</title>
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
+<style>
+:root {
+  --bg: #f8fafc; --bg2: #ffffff; --card: #ffffff;
+  --t1: #0f172a; --t2: #475569; --t3: #94a3b8;
+  --a1: #2563eb; --a2: #3b82f6; --al: #dbeafe;
+  --bdr: #e2e8f0; --sh: rgba(37,99,235,.1);
+  --pos: #16a34a; --pos-bg: #dcfce7;
+  --neu: #d97706; --neu-bg: #fef3c7;
+  --neg: #dc2626; --neg-bg: #fee2e2;
+  --radius: 14px;
+}
+[data-theme=dark] {
+  --bg: #0f172a; --bg2: #1e293b; --card: #1e293b;
+  --t1: #f1f5f9; --t2: #94a3b8; --t3: #475569;
+  --a1: #3b82f6; --a2: #60a5fa; --al: #1e3a5f;
+  --bdr: #334155; --sh: rgba(59,130,246,.15);
+  --pos: #22c55e; --pos-bg: #14532d;
+  --neu: #f59e0b; --neu-bg: #451a03;
+  --neg: #ef4444; --neg-bg: #450a0a;
+}
+*{margin:0;padding:0;box-sizing:border-box;transition:background-color .25s,color .25s,border-color .25s}
+body{font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;background:var(--bg);color:var(--t1);min-height:100vh}
+
+/* Header */
+.hdr{background:linear-gradient(135deg,#1d4ed8,#2563eb,#7c3aed);padding:16px 24px;display:flex;justify-content:space-between;align-items:center;box-shadow:0 2px 12px rgba(0,0,0,.2)}
+.hdr-left h1{color:#fff;font-size:1.4rem;font-weight:700}
+.hdr-left p{color:rgba(255,255,255,.75);font-size:.8rem;margin-top:2px}
+.hdr-right{display:flex;gap:8px}
+.hbtn{background:rgba(255,255,255,.15);border:none;color:#fff;padding:7px 14px;border-radius:20px;cursor:pointer;font-size:.82rem}
+.hbtn:hover{background:rgba(255,255,255,.28)}
+
+/* Layout */
+.wrap{max-width:1280px;margin:0 auto;padding:20px}
+
+/* Card */
+.card{background:var(--card);border-radius:var(--radius);padding:20px;border:1px solid var(--bdr);box-shadow:0 1px 6px var(--sh)}
+.ct{font-size:.95rem;font-weight:700;color:var(--a1);margin-bottom:14px;display:flex;align-items:center;gap:6px}
+.ct span{font-size:1rem}
+
+/* Input section */
+.input-grid{display:grid;grid-template-columns:1fr 300px;gap:16px;margin-bottom:20px}
+@media(max-width:760px){.input-grid{grid-template-columns:1fr}}
+textarea{width:100%;min-height:200px;padding:14px;border:2px solid var(--bdr);border-radius:10px;background:var(--bg);color:var(--t1);font-size:.88rem;font-family:inherit;resize:vertical;outline:none;line-height:1.6}
+textarea:focus{border-color:var(--a1)}
+.input-actions{display:flex;gap:10px;margin-top:10px;flex-wrap:wrap}
+.btn{padding:10px 20px;border:none;border-radius:9px;cursor:pointer;font-size:.88rem;font-weight:600;transition:all .18s}
+.btn-p{background:linear-gradient(135deg,#1d4ed8,#7c3aed);color:#fff}
+.btn-p:hover{transform:translateY(-1px);box-shadow:0 4px 12px rgba(37,99,235,.35)}
+.btn-s{background:var(--bg);color:var(--t2);border:2px solid var(--bdr)}
+.btn-s:hover{border-color:var(--a1);color:var(--a1)}
+.btn-sm{padding:5px 11px;font-size:.78rem}
+
+/* Info panel */
+.info-panel{background:var(--al);border-radius:10px;padding:16px;border:1px solid var(--a1)}
+.info-panel h4{font-size:.82rem;font-weight:700;color:var(--a1);margin-bottom:8px}
+.info-panel li{font-size:.78rem;color:var(--t2);margin-bottom:5px;padding-left:12px;position:relative}
+.info-panel li::before{content:'→';position:absolute;left:0;color:var(--a1)}
+.info-sep{border:none;border-top:1px solid var(--bdr);margin:10px 0}
+.api-note{font-size:.72rem;color:var(--t3);font-style:italic;margin-top:6px}
+
+/* Results */
+.results{display:none}
+.results.show{display:block}
+
+/* Score hero */
+.hero-row{display:grid;grid-template-columns:auto 1fr;gap:20px;align-items:center;margin-bottom:20px}
+@media(max-width:540px){.hero-row{grid-template-columns:1fr;justify-items:center}}
+.score-ring{position:relative;width:160px;height:160px;flex-shrink:0}
+.score-ring svg{width:160px;height:160px}
+.sr-track{fill:none;stroke:var(--bdr);stroke-width:14}
+.sr-fill{fill:none;stroke-width:14;stroke-linecap:round;stroke-dasharray:408;stroke-dashoffset:408;transform:rotate(-90deg);transform-origin:80px 80px;transition:stroke-dashoffset .9s ease,stroke .4s}
+.sr-val{font-size:2rem;font-weight:800;text-anchor:middle;dominant-baseline:middle;fill:var(--t1)}
+.sr-lbl{font-size:.65rem;text-anchor:middle;fill:var(--t2)}
+.sr-sent{font-size:.85rem;font-weight:700;text-anchor:middle;fill:var(--t1)}
+
+/* KPI tiles */
+.kpi-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:12px}
+@media(max-width:640px){.kpi-grid{grid-template-columns:repeat(2,1fr)}}
+.kpi{border-radius:10px;padding:14px;border:1px solid var(--bdr)}
+.kpi-v{font-size:1.6rem;font-weight:800}
+.kpi-l{font-size:.72rem;color:var(--t2);margin-top:2px}
+.kpi-total .kpi-v{color:var(--a1)}
+.kpi-pos{background:var(--pos-bg);border-color:var(--pos)} .kpi-pos .kpi-v{color:var(--pos)}
+.kpi-neu{background:var(--neu-bg);border-color:var(--neu)} .kpi-neu .kpi-v{color:var(--neu)}
+.kpi-neg{background:var(--neg-bg);border-color:var(--neg)} .kpi-neg .kpi-v{color:var(--neg)}
+
+/* Charts row */
+.charts-row{display:grid;grid-template-columns:1fr 1.6fr;gap:16px;margin:16px 0}
+@media(max-width:640px){.charts-row{grid-template-columns:1fr}}
+.chart-wrap{position:relative;height:230px}
+
+/* Keywords */
+.kw-row{display:grid;grid-template-columns:1fr 1fr;gap:16px;margin-bottom:16px}
+@media(max-width:540px){.kw-row{grid-template-columns:1fr}}
+.kw-list{display:flex;flex-wrap:wrap;gap:7px;margin-top:8px}
+.kw-tag{display:inline-flex;align-items:center;gap:5px;padding:4px 10px;border-radius:20px;font-size:.78rem;font-weight:600}
+.kw-p{background:var(--pos-bg);color:var(--pos)}
+.kw-n{background:var(--neg-bg);color:var(--neg)}
+.kw-cnt{font-size:.7rem;opacity:.75}
+
+/* Review cards */
+.review-list{display:flex;flex-direction:column;gap:10px;max-height:420px;overflow-y:auto}
+.rev-card{background:var(--bg);border:1px solid var(--bdr);border-radius:10px;padding:14px;display:grid;grid-template-columns:1fr auto;gap:10px;align-items:start}
+.rev-card:hover{border-color:var(--a1)}
+.rev-text{font-size:.85rem;line-height:1.6;color:var(--t1)}
+.rev-meta{display:flex;flex-direction:column;align-items:flex-end;gap:6px;min-width:80px}
+.badge{padding:4px 10px;border-radius:20px;font-size:.75rem;font-weight:700;white-space:nowrap}
+.b-pos{background:var(--pos-bg);color:var(--pos)}
+.b-neu{background:var(--neu-bg);color:var(--neu)}
+.b-neg{background:var(--neg-bg);color:var(--neg)}
+.rev-score{font-size:.72rem;color:var(--t3)}
+.score-bar{width:70px;height:5px;background:var(--bdr);border-radius:3px;overflow:hidden}
+.score-bar-fill{height:100%;border-radius:3px;transition:width .6s}
+
+/* Empty */
+.empty{text-align:center;padding:40px;color:var(--t3);font-size:.9rem}
+
+/* Scrollbar */
+::-webkit-scrollbar{width:5px;height:5px}
+::-webkit-scrollbar-track{background:var(--bg)}
+::-webkit-scrollbar-thumb{background:var(--a2);border-radius:3px}
+
+/* Animations */
+@keyframes fi{from{opacity:0;transform:translateY(6px)}to{opacity:1;transform:translateY(0)}}
+.fi{animation:fi .3s ease}
+
+.section-gap{display:flex;flex-direction:column;gap:16px}
+</style>
+</head>
+<body>
+
+<header class="hdr">
+  <div class="hdr-left">
+    <h1>⭐ Google Reviews Sentiment Analyzer</h1>
+    <p>Paste customer reviews · Instant AI-powered sentiment insights</p>
+  </div>
+  <div class="hdr-right">
+    <button class="hbtn" onclick="toggleTheme()"><span id="tIcon">🌙</span> <span id="tTxt">Dark</span></button>
+  </div>
+</header>
+
+<div class="wrap">
+
+  <!-- Input -->
+  <div class="input-grid">
+    <div class="card">
+      <div class="ct"><span>📋</span> Paste Google Reviews</div>
+      <textarea id="reviewInput" placeholder="Paste one or more Google reviews here. Separate multiple reviews with a blank line.
+
+Example:
+Absolutely loved the food and service! The staff were incredibly friendly and the ambiance was perfect. Will definitely come back.
+
+The wait time was too long and the food arrived cold. Not worth the price at all. Very disappointed.
+
+Decent place overall. Nothing extraordinary but gets the job done. Parking could be better."></textarea>
+      <div class="input-actions">
+        <button class="btn btn-p" onclick="analyze()">🔍 Analyze Sentiment</button>
+        <button class="btn btn-s" onclick="loadSample()">📥 Load Sample Reviews</button>
+        <button class="btn btn-s" onclick="clearAll()">🗑 Clear</button>
+      </div>
+    </div>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div class="info-panel">
+        <h4>📌 How to use</h4>
+        <ul>
+          <li>Copy reviews from Google Maps</li>
+          <li>Paste them into the text area</li>
+          <li>Separate reviews with a blank line</li>
+          <li>Click <strong>Analyze Sentiment</strong></li>
+        </ul>
+        <hr class="info-sep">
+        <h4>🔑 Fetch via API (optional)</h4>
+        <input type="text" id="placeId" placeholder="Google Place ID" style="width:100%;padding:7px 10px;border:2px solid var(--bdr);border-radius:8px;background:var(--bg);color:var(--t1);font-size:.8rem;margin-bottom:6px;outline:none">
+        <input type="password" id="apiKey" placeholder="Google API Key" style="width:100%;padding:7px 10px;border:2px solid var(--bdr);border-radius:8px;background:var(--bg);color:var(--t1);font-size:.8rem;margin-bottom:6px;outline:none">
+        <button class="btn btn-s" style="width:100%;font-size:.8rem" onclick="fetchFromAPI()">🌐 Fetch Reviews</button>
+        <p class="api-note">Requires Google Places API key. Fetches up to 5 reviews per place.</p>
+      </div>
+    </div>
+  </div>
+
+  <!-- Results -->
+  <div class="results section-gap" id="results">
+
+    <!-- Score + KPIs -->
+    <div class="card fi">
+      <div class="ct"><span>📊</span> Overall Sentiment Analysis</div>
+      <div class="hero-row">
+        <div class="score-ring">
+          <svg viewBox="0 0 160 160">
+            <circle class="sr-track" cx="80" cy="80" r="65"/>
+            <circle class="sr-fill" id="srFill" cx="80" cy="80" r="65"/>
+            <text x="80" y="72" class="sr-val" id="srVal">—</text>
+            <text x="80" y="92" class="sr-lbl">compound score</text>
+            <text x="80" y="108" class="sr-sent" id="srSent">—</text>
+          </svg>
+        </div>
+        <div>
+          <div class="kpi-grid">
+            <div class="kpi kpi-total"><div class="kpi-v" id="kTotal">0</div><div class="kpi-l">Total Reviews</div></div>
+            <div class="kpi kpi-pos"><div class="kpi-v" id="kPos">0%</div><div class="kpi-l">😊 Positive</div></div>
+            <div class="kpi kpi-neu"><div class="kpi-v" id="kNeu">0%</div><div class="kpi-l">😐 Neutral</div></div>
+            <div class="kpi kpi-neg"><div class="kpi-v" id="kNeg">0%</div><div class="kpi-l">😞 Negative</div></div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Charts -->
+    <div class="charts-row">
+      <div class="card fi">
+        <div class="ct"><span>🍩</span> Sentiment Distribution</div>
+        <div class="chart-wrap"><canvas id="dChart"></canvas></div>
+      </div>
+      <div class="card fi">
+        <div class="ct"><span>📈</span> Per-Review Sentiment Scores</div>
+        <div class="chart-wrap"><canvas id="bChart"></canvas></div>
+      </div>
+    </div>
+
+    <!-- Keywords -->
+    <div class="kw-row">
+      <div class="card fi">
+        <div class="ct"><span>✅</span> Top Positive Keywords</div>
+        <div class="kw-list" id="posKW"></div>
+      </div>
+      <div class="card fi">
+        <div class="ct"><span>⚠️</span> Top Negative Keywords</div>
+        <div class="kw-list" id="negKW"></div>
+      </div>
+    </div>
+
+    <!-- Review cards -->
+    <div class="card fi">
+      <div class="ct"><span>💬</span> Individual Review Analysis</div>
+      <div class="review-list" id="reviewList"></div>
+    </div>
+
+  </div>
+</div>
+
+<script>
+// ── Sentiment Lexicon (AFINN-inspired, review-domain focused) ────────────────
+const LEX = {
+  // +5
+  excellent:5,outstanding:5,exceptional:5,perfect:5,amazing:5,
+  fantastic:5,wonderful:5,superb:5,brilliant:5,extraordinary:5,
+  phenomenal:5,flawless:5,magnificent:5,spectacular:5,incredible:5,
+  breathtaking:5,unbelievable:5,
+  // +4
+  great:4,awesome:4,best:4,love:4,loved:4,terrific:4,fabulous:4,
+  delightful:4,impressive:4,recommend:4,recommended:4,marvelous:4,
+  splendid:4,glorious:4,sublime:4,
+  // +3
+  good:3,nice:3,happy:3,pleased:3,satisfied:3,friendly:3,helpful:3,
+  delicious:3,tasty:3,clean:3,professional:3,lovely:3,pleasant:3,
+  enjoyable:3,welcoming:3,charming:3,exquisite:3,refreshing:3,
+  generous:3,genuine:3,spotless:3,attentive:3,
+  // +2
+  comfortable:2,convenient:2,polite:2,courteous:2,appreciate:2,
+  appreciated:2,affordable:2,reasonable:2,beautiful:2,positive:2,
+  worth:2,honest:2,efficient:2,quick:2,fast:2,fresh:2,warm:2,
+  reliable:2,prompt:2,responsive:2,tasty:2,yummy:2,scrumptious:2,
+  // +1
+  fair:1,decent:1,fine:1,ok:1,okay:1,satisfactory:1,adequate:1,
+  acceptable:1,alright:1,solid:1,neat:1,tidy:1,helpful:1,
+  // -1
+  average:-1,mediocre:-1,bland:-1,ordinary:-1,forgettable:-1,
+  generic:-1,meh:-1,
+  // -2
+  disappointing:-2,disappointed:-2,poor:-2,overpriced:-2,wrong:-2,
+  mistake:-2,issue:-2,problem:-2,unhappy:-2,careless:-2,late:-2,
+  delay:-2,delayed:-2,noisy:-2,crowded:-2,uncomfortable:-2,
+  lacking:-2,subpar:-2,underwhelming:-2,stale:-2,greasy:-2,
+  inattentive:-2,unresponsive:-2,
+  // -3
+  bad:-3,rude:-3,unprofessional:-3,unfriendly:-3,dirty:-3,
+  waste:-3,wasted:-3,ignored:-3,neglect:-3,incompetent:-3,
+  unacceptable:-3,disgusting:-3,offensive:-3,annoying:-3,
+  frustrating:-3,messy:-3,broken:-3,cold:-2,
+  // -4
+  terrible:-4,awful:-4,horrible:-4,hate:-4,hated:-4,worst:-4,
+  appalling:-4,dreadful:-4,atrocious:-4,deplorable:-4,pathetic:-4,
+  abysmal:-4,
+  // -5
+  fraud:-5,scam:-5,ripoff:-5,disgusting:-5,
+};
+
+const NEGATIONS = new Set([
+  'not','no','never','neither','nobody','nothing','nowhere','nor',
+  'cannot',"can't","won't","don't","doesn't","didn't","isn't",
+  "aren't","wasn't","weren't","haven't","hasn't","hadn't",
+  "wouldn't","couldn't","shouldn't",'without','barely','hardly',
+  'scarcely','lack','lacking',
+]);
+
+const INTENSIFIERS = {
+  very:1.3,extremely:1.5,absolutely:1.5,totally:1.3,completely:1.4,
+  utterly:1.5,highly:1.3,incredibly:1.4,exceptionally:1.4,really:1.2,
+  so:1.15,quite:1.1,rather:1.1,super:1.3,definitely:1.2,truly:1.2,
+  particularly:1.2,especially:1.2,deeply:1.2,seriously:1.3,
+  somewhat:0.7,fairly:0.8,slightly:0.6,almost:0.8,barely:0.5,
+};
+
+// ── VADER-style sentiment analysis ──────────────────────────────────────────
+function analyzeSentiment(text) {
+  const raw = text.toLowerCase().replace(/[^a-z0-9'\s]/g,' ');
+  const tokens = raw.split(/\s+/).filter(Boolean);
+  let scores = [];
+
+  for (let i = 0; i < tokens.length; i++) {
+    const tok = tokens[i];
+    if (!(tok in LEX)) continue;
+
+    let val = LEX[tok];
+    // negation window (3 words back)
+    let negated = false;
+    for (let j = Math.max(0, i-3); j < i; j++) {
+      if (NEGATIONS.has(tokens[j])) { negated = true; break; }
+    }
+    // intensifier (1-2 words back)
+    let mult = 1;
+    for (let j = Math.max(0, i-2); j < i; j++) {
+      if (tokens[j] in INTENSIFIERS) { mult = INTENSIFIERS[tokens[j]]; break; }
+    }
+    val = val * mult;
+    if (negated) val = val * -0.74;
+    scores.push(val);
+  }
+
+  const sum = scores.reduce((a,b) => a+b, 0);
+  const alpha = 15;
+  const compound = scores.length ? sum / Math.sqrt(sum*sum + alpha) : 0;
+  const c = Math.round(compound * 100) / 100;
+
+  let label, color;
+  if (c >= 0.05)      { label = 'Positive'; color = '#16a34a'; }
+  else if (c <= -0.05){ label = 'Negative'; color = '#dc2626'; }
+  else                { label = 'Neutral';  color = '#d97706'; }
+
+  // Extract top words from this review
+  const words = {};
+  tokens.forEach(t => { if (t in LEX) words[t] = (words[t]||0) + 1; });
+
+  return { compound: c, label, color, wordScores: words };
+}
+
+// ── Parse input into individual reviews ─────────────────────────────────────
+function parseReviews(raw) {
+  return raw.split(/\n{2,}/)
+    .map(r => r.replace(/\n/g,' ').trim())
+    .filter(r => r.length > 5);
+}
+
+// ── Main analyze ─────────────────────────────────────────────────────────────
+let dChart = null, bChart = null;
+
+function analyze() {
+  const raw = document.getElementById('reviewInput').value.trim();
+  if (!raw) { alert('Please paste some reviews first.'); return; }
+
+  const reviews = parseReviews(raw);
+  if (!reviews.length) { alert('Could not detect any reviews. Separate them with a blank line.'); return; }
+
+  const results = reviews.map(r => ({ text: r, ...analyzeSentiment(r) }));
+
+  const pos = results.filter(r => r.label === 'Positive').length;
+  const neu = results.filter(r => r.label === 'Neutral').length;
+  const neg = results.filter(r => r.label === 'Negative').length;
+  const n = results.length;
+  const avg = results.reduce((s,r) => s+r.compound, 0) / n;
+  const avgR = Math.round(avg * 100) / 100;
+
+  // Keyword aggregation across all reviews
+  const posWords = {}, negWords = {};
+  results.forEach(r => {
+    Object.entries(r.wordScores).forEach(([w, cnt]) => {
+      const s = LEX[w];
+      if (s > 0) posWords[w] = (posWords[w]||0) + cnt;
+      if (s < 0) negWords[w] = (negWords[w]||0) + cnt;
+    });
+  });
+  const topPos = Object.entries(posWords).sort((a,b)=>b[1]-a[1]).slice(0,12);
+  const topNeg = Object.entries(negWords).sort((a,b)=>b[1]-a[1]).slice(0,12);
+
+  renderHero(avgR, pos, neu, neg, n);
+  renderCharts(pos, neu, neg, results);
+  renderKeywords(topPos, topNeg);
+  renderCards(results);
+
+  document.getElementById('results').classList.add('show');
+  document.getElementById('results').scrollIntoView({behavior:'smooth', block:'start'});
+}
+
+// ── Hero / KPIs ───────────────────────────────────────────────────────────────
+function renderHero(avg, pos, neu, neg, n) {
+  const C = 2 * Math.PI * 65; // ~408
+  const pct = (avg + 1) / 2; // map -1..1 → 0..1
+  const offset = C - pct * C;
+  const color = avg >= 0.05 ? 'var(--pos)' : avg <= -0.05 ? 'var(--neg)' : 'var(--neu)';
+  const label = avg >= 0.05 ? '😊 Positive' : avg <= -0.05 ? '😞 Negative' : '😐 Neutral';
+
+  document.getElementById('srFill').style.strokeDashoffset = offset;
+  document.getElementById('srFill').style.stroke = color;
+  document.getElementById('srVal').textContent = avg.toFixed(2);
+  document.getElementById('srSent').textContent = label;
+
+  document.getElementById('kTotal').textContent = n;
+  document.getElementById('kPos').textContent = Math.round((pos/n)*100) + '%';
+  document.getElementById('kNeu').textContent = Math.round((neu/n)*100) + '%';
+  document.getElementById('kNeg').textContent = Math.round((neg/n)*100) + '%';
+}
+
+// ── Charts ────────────────────────────────────────────────────────────────────
+function renderCharts(pos, neu, neg, results) {
+  const isDark = document.documentElement.getAttribute('data-theme') === 'dark';
+  const tc = isDark ? '#94a3b8' : '#475569';
+  const gc = isDark ? 'rgba(148,163,184,.1)' : 'rgba(0,0,0,.06)';
+  const bc = isDark ? '#1e293b' : '#ffffff';
+
+  if (dChart) dChart.destroy();
+  if (bChart) bChart.destroy();
+
+  dChart = new Chart(document.getElementById('dChart'), {
+    type: 'doughnut',
+    data: {
+      labels: ['Positive', 'Neutral', 'Negative'],
+      datasets: [{
+        data: [pos, neu, neg],
+        backgroundColor: ['#16a34a','#d97706','#dc2626'],
+        borderColor: bc, borderWidth: 2,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {
+        legend: {labels:{color:tc, font:{size:11}, boxWidth:12}},
+        tooltip: {callbacks:{label: ctx => ` ${ctx.label}: ${ctx.parsed} reviews`}}
+      }
+    }
+  });
+
+  // Bar chart: per-review score
+  const labels = results.map((_,i) => `Review ${i+1}`);
+  const data   = results.map(r => r.compound);
+  const colors = results.map(r =>
+    r.label==='Positive' ? 'rgba(22,163,74,.75)' :
+    r.label==='Negative' ? 'rgba(220,38,38,.75)' :
+    'rgba(217,119,6,.75)');
+
+  bChart = new Chart(document.getElementById('bChart'), {
+    type: 'bar',
+    data: {
+      labels,
+      datasets: [{
+        label:'Compound Score', data, backgroundColor: colors,
+        borderWidth:0, borderRadius:5,
+      }]
+    },
+    options: {
+      responsive:true, maintainAspectRatio:false,
+      plugins: {legend:{display:false}},
+      scales: {
+        x:{ticks:{color:tc,font:{size:10}}, grid:{color:gc}},
+        y:{min:-1,max:1,ticks:{color:tc,font:{size:10}},
+           grid:{color:gc},
+           title:{display:true,text:'Score',color:tc,font:{size:10}}
+        }
+      }
+    }
+  });
+}
+
+// ── Keywords ──────────────────────────────────────────────────────────────────
+function renderKeywords(topPos, topNeg) {
+  const posEl = document.getElementById('posKW');
+  const negEl = document.getElementById('negKW');
+
+  posEl.innerHTML = topPos.length
+    ? topPos.map(([w,c]) => `<span class="kw-tag kw-p">${w}<span class="kw-cnt">${c > 1 ? ' ×'+c : ''}</span></span>`).join('')
+    : '<span style="color:var(--t3);font-size:.8rem">No positive keywords found</span>';
+
+  negEl.innerHTML = topNeg.length
+    ? topNeg.map(([w,c]) => `<span class="kw-tag kw-n">${w}<span class="kw-cnt">${c > 1 ? ' ×'+c : ''}</span></span>`).join('')
+    : '<span style="color:var(--t3);font-size:.8rem">No negative keywords found</span>';
+}
+
+// ── Review cards ──────────────────────────────────────────────────────────────
+function renderCards(results) {
+  const el = document.getElementById('reviewList');
+  el.innerHTML = results.map((r, i) => {
+    const pct = Math.round(((r.compound + 1) / 2) * 100);
+    const barColor = r.label==='Positive' ? 'var(--pos)' : r.label==='Negative' ? 'var(--neg)' : 'var(--neu)';
+    const badge = r.label==='Positive' ? 'b-pos' : r.label==='Negative' ? 'b-neg' : 'b-neu';
+    const emoji = r.label==='Positive' ? '😊' : r.label==='Negative' ? '😞' : '😐';
+    const preview = r.text.length > 180 ? r.text.slice(0,180) + '…' : r.text;
+    return `<div class="rev-card fi" style="animation-delay:${i*0.04}s">
+      <div class="rev-text">${preview}</div>
+      <div class="rev-meta">
+        <span class="badge ${badge}">${emoji} ${r.label}</span>
+        <div class="rev-score">Score: ${r.compound}</div>
+        <div class="score-bar"><div class="score-bar-fill" style="width:${pct}%;background:${barColor}"></div></div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+// ── Sample data ───────────────────────────────────────────────────────────────
+function loadSample() {
+  document.getElementById('reviewInput').value = `Absolutely incredible experience from start to finish! The food was outstanding — every dish was perfectly seasoned and beautifully presented. Staff were incredibly friendly and attentive. One of the best restaurants I've visited in years. Highly recommend!
+
+The service was disappointingly slow and our server seemed completely uninterested in helping us. The food arrived cold and the portion sizes were very small for the price. Overpriced and underwhelming. Won't be coming back.
+
+Pretty decent spot overall. Food was good, nothing extraordinary but definitely enjoyable. The ambiance is nice and the location is convenient. Parking can be a bit of a problem on weekends but manageable.
+
+Wow, just wow! The chef clearly has a passion for food — every bite was delicious and fresh. The desserts were absolutely phenomenal. The warm and welcoming atmosphere made our anniversary dinner truly special. Perfect in every way!
+
+Had high expectations but left feeling underwhelmed. The pasta was bland and the sauce lacked flavour. Staff were polite enough but not particularly attentive. Mediocre at best. Probably won't return unless it improves significantly.
+
+Great value for money! Generous portions, tasty food and fast service. The staff were friendly and helpful. Felt genuinely welcomed. Will definitely be a regular here. Solid neighbourhood restaurant.
+
+Rude staff and a dirty dining area. Waited 45 minutes for a simple order and when it arrived it was wrong. When I raised the issue the manager was dismissive and unprofessional. Terrible experience overall.
+
+Lovely little place with a great menu. The coffee was excellent and the pastries were fresh and delicious. Comfortable seating and a relaxed atmosphere. I come here every weekend now — consistently good!`;
+  analyze();
+}
+
+// ── Clear ──────────────────────────────────────────────────────────────────────
+function clearAll() {
+  document.getElementById('reviewInput').value = '';
+  document.getElementById('results').classList.remove('show');
+  if (dChart) { dChart.destroy(); dChart = null; }
+  if (bChart) { bChart.destroy(); bChart = null; }
+}
+
+// ── Google Places API fetch ───────────────────────────────────────────────────
+async function fetchFromAPI() {
+  const placeId = document.getElementById('placeId').value.trim();
+  const apiKey  = document.getElementById('apiKey').value.trim();
+  if (!placeId || !apiKey) { alert('Enter both a Place ID and API Key.'); return; }
+  try {
+    const url = `https://maps.googleapis.com/maps/api/place/details/json?place_id=${placeId}&fields=name,reviews&key=${apiKey}`;
+    const res = await fetch(url);
+    const data = await res.json();
+    if (data.result?.reviews) {
+      const text = data.result.reviews.map(r => r.text).join('\n\n');
+      document.getElementById('reviewInput').value = text;
+      analyze();
+    } else {
+      alert('No reviews found or invalid Place ID / API Key.\n\nNote: This API call may also be blocked by CORS when run from a local file. Use a backend server for production use.');
+    }
+  } catch {
+    alert('Fetch failed. This is usually a CORS restriction when calling the Google API directly from the browser.\n\nSolution: Use a backend server (Node.js/Python) to proxy the request, or copy reviews manually from Google Maps.');
+  }
+}
+
+// ── Theme ─────────────────────────────────────────────────────────────────────
+function toggleTheme() {
+  const cur = document.documentElement.getAttribute('data-theme') || 'light';
+  const next = cur === 'light' ? 'dark' : 'light';
+  document.documentElement.setAttribute('data-theme', next);
+  localStorage.setItem('sa_theme', next);
+  document.getElementById('tIcon').textContent = next === 'dark' ? '☀️' : '🌙';
+  document.getElementById('tTxt').textContent  = next === 'dark' ? 'Light' : 'Dark';
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  const t = localStorage.getItem('sa_theme') || 'light';
+  document.documentElement.setAttribute('data-theme', t);
+  document.getElementById('tIcon').textContent = t === 'dark' ? '☀️' : '🌙';
+  document.getElementById('tTxt').textContent  = t === 'dark' ? 'Light' : 'Dark';
+});
+</script>
+</body>
+</html>
