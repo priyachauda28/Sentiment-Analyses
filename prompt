@@ -1,0 +1,120 @@
+Create a single-file HTML Google Reviews Sentiment Analyzer with no backend,
+no build steps, and no external dependencies except Chart.js from CDN.
+
+## Design
+- Blue/purple gradient header: linear-gradient(135deg, #1d4ed8, #2563eb, #7c3aed)
+- CSS custom properties for light and dark mode (toggle stored in localStorage)
+- Colour-coded sentiment: green (positive), amber (neutral), red (negative)
+- Smooth fade-in animations on results
+- Responsive layout — stacks to single column on mobile
+
+## Input Section
+- Two-column layout: large textarea on the left, info/API panel on the right
+- Textarea placeholder shows example reviews with instructions
+- Reviews are separated by blank lines — one blank line = new review
+- Three buttons: Analyze Sentiment, Load Sample Reviews, Clear
+- Info panel explains how to copy reviews from Google Maps
+
+## Optional Google Places API Integration
+- Two input fields: Google Place ID and Google API Key (password field)
+- "Fetch Reviews" button calls Google Places Details API
+  URL: https://maps.googleapis.com/maps/api/place/details/json
+       ?place_id={id}&fields=name,reviews&key={key}
+- Extracts review text, joins with blank lines, auto-triggers analysis
+- Handle CORS failure gracefully with a helpful error message
+- Note: fetches up to 5 reviews per place
+
+## Sentiment Analysis Engine (VADER-style, pure JavaScript)
+
+### Lexicon
+Build an AFINN-inspired lexicon of ~130 review-domain words scored -5 to +5:
+- +5: excellent, outstanding, perfect, amazing, fantastic, phenomenal, flawless
+- +4: great, awesome, best, love, terrific, fabulous, impressive, recommend
+- +3: good, nice, happy, satisfied, friendly, helpful, delicious, professional
+- +2: comfortable, convenient, affordable, beautiful, efficient, reliable, prompt
+- +1: fair, decent, fine, okay, satisfactory, solid
+- -1: average, mediocre, bland, forgettable, generic
+- -2: disappointing, poor, overpriced, delayed, uncomfortable, underwhelming, stale
+- -3: bad, rude, unprofessional, dirty, frustrating, broken, disgusting
+- -4: terrible, awful, horrible, hate, worst, appalling, pathetic, abysmal
+- -5: fraud, scam, ripoff
+
+### Negation handling
+Check a window of 3 words before each scored word.
+Negation words: not, no, never, neither, cannot, can't, won't, don't, doesn't,
+  didn't, isn't, aren't, wasn't, weren't, haven't, hasn't, hadn't, wouldn't,
+  couldn't, shouldn't, without, barely, hardly, scarcely, lack, lacking
+If a negation is found: multiply the word's score by -0.74 (partial flip)
+
+### Intensifier scaling
+Check a window of 2 words before each scored word.
+Multipliers:
+  ×1.5 — extremely, absolutely, utterly, exceptionally
+  ×1.4 — completely, incredibly
+  ×1.3 — very, super, seriously
+  ×1.2 — really, definitely, truly, particularly, especially, deeply
+  ×1.15 — so
+  ×1.1 — quite, rather
+  ×0.8 — fairly, almost
+  ×0.7 — somewhat
+  ×0.6 — slightly
+  ×0.5 — barely
+
+### Compound score formula (VADER normalisation)
+compound = sum_of_scores / sqrt(sum_of_scores² + 15)
+Result is always between -1.0 and +1.0, rounded to 2 decimal places.
+
+### Classification thresholds
+Positive: compound ≥ 0.05
+Negative: compound ≤ -0.05
+Neutral:  between -0.05 and 0.05
+
+### Keyword extraction
+Aggregate all lexicon words found across all reviews.
+Separate into positive (score > 0) and negative (score < 0) lists.
+Sort each list by total occurrence count, show top 12 per category.
+
+## Results Section (shown after analysis, smooth scroll into view)
+
+### Overall Sentiment — Score Ring + KPI Tiles
+- Animated SVG circular ring gauge (radius 65, stroke 14)
+  - Maps compound score (-1 to +1) onto the ring circumference
+  - Ring colour: green (positive) / amber (neutral) / red (negative)
+  - Centre text: compound score value + overall label (😊/😐/😞)
+  - Animate ring fill on load using stroke-dashoffset transition
+- 4 KPI tiles beside the ring:
+  - Total Reviews (blue)
+  - % Positive (green background)
+  - % Neutral (amber background)  
+  - % Negative (red background)
+
+### Charts (Chart.js 4.4 from CDN)
+- Doughnut chart: Positive / Neutral / Negative counts
+  Colours: #16a34a / #d97706 / #dc2626
+- Bar chart: individual compound score per review on x-axis (-1 to +1 y-axis)
+  Bar colours match sentiment label, border-radius 5px
+
+### Keywords
+- Two side-by-side cards: Top Positive Keywords | Top Negative Keywords
+- Each keyword shown as a colour-coded pill/tag with occurrence count
+- Green pills for positive, red pills for negative
+
+### Individual Review Cards
+- Scrollable list (max-height 420px)
+- Each card shows:
+  - Truncated review text (180 chars max, ellipsis)
+  - Sentiment badge (😊 Positive / 😐 Neutral / 😞 Negative)
+  - Compound score number
+  - Colour-coded progress bar (maps -1..+1 to 0..100%)
+- Cards have hover border highlight
+
+## Sample Data
+Load 8 pre-written restaurant reviews covering a range of sentiments
+(very positive, very negative, neutral, mixed) when "Load Sample Reviews" clicked.
+Auto-trigger analysis after loading.
+
+## Tech stack
+- HTML5, CSS3 with custom properties
+- Vanilla JavaScript ES6+ only
+- Chart.js 4.4 via CDN (jsdelivr)
+- No frameworks, no build tools, no npm
